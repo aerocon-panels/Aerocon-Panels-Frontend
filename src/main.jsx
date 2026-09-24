@@ -703,16 +703,34 @@ function App() {
 
             <div className="reasonGrid grid">
               {[
-                'Quality-focused solutions',
-                'Professional guidance',
-                'Wide application range',
-                'Responsive customer service',
-                'Hyderabad-focused service',
-                'Easy enquiry and quotation process'
-              ].map((x, i) => (
+                {
+                  heading: 'Quality-focused solutions',
+                  description: 'Durable panel solutions selected for reliable construction and finishing.'
+                },
+                {
+                  heading: 'Professional guidance',
+                  description: 'Get practical guidance on choosing the right panels and materials for your project.'
+                },
+                {
+                  heading: 'Wide application range',
+                  description: 'Suitable for partitions, walls, ceilings, cladding and other construction applications.'
+                },
+                {
+                  heading: 'Responsive customer service',
+                  description: 'Quick assistance from enquiry to material selection and project requirements.'
+                },
+                {
+                  heading: 'Hyderabad-focused service',
+                  description: 'Serving customers across Hyderabad and nearby areas with convenient local support.'
+                },
+                {
+                  heading: 'Easy enquiry and quotation process',
+                  description: 'Share your project requirements and get clear information for your next step.'
+                }
+              ].map((item, i) => (
                 <div
                   className="reasonCard reveal"
-                  key={x}
+                  key={item.heading}
                 >
                   <div className="reasonTop">
                     <div className="reasonNo">
@@ -722,14 +740,11 @@ function App() {
                     <Check color="#f6a623" />
                   </div>
 
-                  <h3>{x}</h3>
+                  <h3>{item.heading}</h3>
 
-                  {i !== 0 && (
-                    <p>
-                      Built around practical project requirements
-                      and customer support.
-                    </p>
-                  )}
+                  <p>
+                    {item.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -745,8 +760,7 @@ function App() {
                 <h2 className="title">Our Gallery</h2>
 
                 <p className="lead">
-                  Explore residential, commercial, interior and construction
-                  work from our Supabase gallery.
+                  Explore our completed Aerocon Panel projects and quality construction work.
                 </p>
               </div>
             </div>
@@ -912,7 +926,7 @@ function App() {
                   fontSize: 'clamp(2rem,4vw,3.4rem)'
                 }}
               >
-               Serving Hyderabad, Telangana & Andhra Pradesh Serving Hyderabad & Nearby Areas
+               Located in Hyderabad and serving across Telangana and Andhra Pradesh.
               </h2>
 
               <p className="lead">
