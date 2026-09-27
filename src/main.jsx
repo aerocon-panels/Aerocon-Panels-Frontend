@@ -27,18 +27,37 @@ import './styles.css';
 import { supabase } from './lib/supabaseClient';
 
 // Gallery data is loaded from Supabase.
-// Category is inferred from each title because the current gallery_items table
-// does not have a separate category column.
+// Category is inferred from the title or Storage filename because the current
+// gallery_items table does not have a separate category column.
 const getGalleryCategory = (item) => {
   const title = (item?.title || '').toLowerCase();
+  const mediaUrl = (
+    item?.media_url || item?.thumbnail_url || ''
+  ).toLowerCase();
+  const categorySource = title || mediaUrl;
 
-  if (title.includes('residential')) return 'Residential';
-  if (title.includes('commercial') || title.includes('office')) return 'Commercial';
-  if (title.includes('interior') || title.includes('partition')) return 'Interior';
+  if (categorySource.includes('residential') || mediaUrl.includes('/res')) {
+    return 'Residential';
+  }
   if (
-    title.includes('construction') ||
-    title.includes('wall work') ||
-    title.includes('installation')
+    categorySource.includes('commercial') ||
+    categorySource.includes('office') ||
+    mediaUrl.includes('/com')
+  ) {
+    return 'Commercial';
+  }
+  if (
+    categorySource.includes('interior') ||
+    categorySource.includes('partition') ||
+    mediaUrl.includes('/int')
+  ) {
+    return 'Interior';
+  }
+  if (
+    categorySource.includes('construction') ||
+    categorySource.includes('wall work') ||
+    categorySource.includes('installation') ||
+    mediaUrl.includes('/con')
   ) {
     return 'Construction';
   }
@@ -238,7 +257,6 @@ function App() {
       const { data, error } = await supabase
         .from('gallery_items')
         .select('id, title, type, media_url, thumbnail_url, is_published')
-        .eq('is_published', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -246,7 +264,11 @@ function App() {
         setGalleryItems([]);
         setGalleryError('Unable to load the gallery right now.');
       } else {
-        setGalleryItems(data || []);
+        setGalleryItems(
+          (data || []).filter(
+            (item) => item.media_url || item.thumbnail_url
+          )
+        );
       }
 
       setGalleryLoading(false);
