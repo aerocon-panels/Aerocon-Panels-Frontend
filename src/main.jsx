@@ -801,7 +801,6 @@ function App() {
             {!galleryLoading && !galleryError && visible.length > 0 && (
               <div className="gallery grid">
                 {visible.map((g) => {
-                  const category = getGalleryCategory(g);
                   const mediaUrl = g.media_url || g.thumbnail_url;
                   const poster = g.thumbnail_url || undefined;
                   const isVideo = g.type?.toLowerCase() === 'video';
@@ -832,21 +831,6 @@ function App() {
                           alt={g.title}
                         />
                       )}
-
-                      <div className="galleryOverlay">
-                        {g.title}
-
-                        <span
-                          style={{
-                            display: 'block',
-                            color: '#d2d8dc',
-                            fontSize: '.82rem',
-                            fontWeight: 500
-                          }}
-                        >
-                          {category} • {g.type || 'photo'}
-                        </span>
-                      </div>
                     </div>
                   );
                 })}
