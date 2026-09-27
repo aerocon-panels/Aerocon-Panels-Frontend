@@ -30,10 +30,10 @@ import { supabase } from './lib/supabaseClient';
 // Category is inferred from the title or Storage filename because the current
 // gallery_items table does not have a separate category column.
 const getGalleryCategory = (item) => {
-  const title = (item?.title || '').toLowerCase();
+  const title = String(item?.title || '').trim().toLowerCase();
   const mediaUrl = (
     item?.media_url || item?.thumbnail_url || ''
-  ).toLowerCase();
+  ).trim().toLowerCase();
   const categorySource = title || mediaUrl;
 
   if (categorySource.includes('residential') || mediaUrl.includes('/res')) {
@@ -247,7 +247,7 @@ function App() {
     document.querySelectorAll('.reveal').forEach((x) => observer.observe(x));
 
     return () => observer.disconnect();
-  }, [galleryItems]);
+  }, [galleryItems, filter]);
 
   useEffect(() => {
     const loadGallery = async () => {
@@ -257,6 +257,7 @@ function App() {
       const { data, error } = await supabase
         .from('gallery_items')
         .select('id, title, type, media_url, thumbnail_url, is_published')
+        .eq('is_published', true)
         .order('created_at', { ascending: false });
 
       if (error) {
