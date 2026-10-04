@@ -267,7 +267,7 @@ function App() {
   const selectedProduct =
     products.find((p) => p.title === selectedProductTitle) || null;
 
-  const projectsPerPage = 10;
+  const projectsPerPage = 5;
   const projectStartIndex = (projectPage - 1) * projectsPerPage;
   const visibleProjects = projects.slice(
     projectStartIndex,
