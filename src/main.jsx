@@ -150,6 +150,35 @@ const fallbackGalleryItems = products.map((product, index) => ({
   thumbnail_url: product.img
 }));
 
+const projects = [
+  ['Restaurant', 'Tellapur', 'Commercial partions', '1000 sft wall area with 75mm aerocon panels'],
+  ['Hydropharm', 'Vattinagulapally', 'Prefab structure', '1800 sft wall area with 75mm Aerocon panels'],
+  ['Farm house', 'Tupran', 'Industrial shed', '1300 sft area closing with 10mm cement fibre board'],
+  ['Commercial store', 'Gandipet', 'Prefab structure', '1500 sft wall area with 75mm aeerocon panels'],
+  ['watchmen rooms', 'Gachibowli', 'residential building', '700 sft wall area with 50mm aerocon panels'],
+  ['Lift area closing', 'Patancheru', 'residential building', '600 sft area 3 sides of lift closing with 10mm cement fibre board'],
+  ['India cements', 'Chilmakuru, A.P', 'Prefab structure', '7000 sft area of 50mm aerocon panels supplied'],
+  ['Apartment office', 'Bachupally', 'residential building', '1200 sft wall area with 50mm aerocon panels'],
+  ['Mezzanine floor', 'Gachibowli', 'Industrial shed', '1000 sft area of flooring with 18mm cement fibre board'],
+  ['commercial office', 'Madhapur', 'Commercial building', '800 sft area partions with 2sides 8mm cement fibre board'],
+  ['Restaurant', 'Banjara hills', 'Commercial partions', '600 sft kitchen partions with 2sides 8mm cement fibre board'],
+  ['Hospital', 'Lingampally', 'commercial building', '2000 sft wall area with 75m aerocon panel'],
+  ['Gym', 'Madeenaguda', 'commercial building', '1000 sft wall partion area with 75mm aerocon panels'],
+  ['Residential flat', 'Miyapur', 'residential building', '800 sft area partions with 2sides 10mm cement fibre board'],
+  ['Beauty parlour', 'Patancheru', 'commercial building', '750 sft area partions with 2sides 8mm cement fibre board'],
+  ['commercial office', 'Medchal', 'commercial building', '500 sft wall area with 75mm aerocon panel'],
+  ['Pent house', 'Bowrampet', 'residential building', '650 sft wall area with 50mm aerocon panel'],
+  ['Residential flat', 'Kondapur', 'residential building', '800 sft of sewage pipe lines area closing with 8mm cement fibre board'],
+  ['Farm house', 'Janwada', 'Prefab structure', '1000 sft wall area with 50mm aerocon panels'],
+  ['Apartment elevation', 'Ameenpur', 'residential building', '900 sft area of elevation with 8mm cplanks'],
+  ['Beauty Salon', 'West maredpally', 'Commercial building', '1000 sft partion area with 12mm cement fibre boards'],
+  ['General store', 'Chandanagar', 'Commercial building', '600 sft wall area with 50mm aerocon panel'],
+  ['Function hall', 'KPHB colony', 'Commercial building', '1000 sft wall area with 75mm Aerocon panels'],
+  ['Commercial office', 'Osman nagar', 'Prefab structure', '2000 sft floor area with 18mm cement fibre board'],
+  ['Commercial office', 'Alkapur', 'Commercial building', '1800 sft wall area with 75mm Aerocon panels'],
+  ['Industrial office', 'Chandanvalle,Shabad', 'Industrial shed', '4000 sft area of partions with 12mm cement fibre board']
+];
+
 const reviews = [
   {
     name: 'Susagar Divi',
@@ -228,6 +257,7 @@ function App() {
 
   const [sent, setSent] = useState(false);
   const [selectedProductTitle, setSelectedProductTitle] = useState(null);
+  const [projectPage, setProjectPage] = useState(1);
 
   const [galleryItems, setGalleryItems] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
@@ -236,6 +266,14 @@ function App() {
 
   const selectedProduct =
     products.find((p) => p.title === selectedProductTitle) || null;
+
+  const projectsPerPage = 10;
+  const projectStartIndex = (projectPage - 1) * projectsPerPage;
+  const visibleProjects = projects.slice(
+    projectStartIndex,
+    projectStartIndex + projectsPerPage
+  );
+  const projectPageCount = Math.ceil(projects.length / projectsPerPage);
 
   const visible = useMemo(() => {
     if (filter === 'All') return galleryItems;
@@ -311,6 +349,14 @@ function App() {
     document
       .getElementById(id)
       ?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const openProjects = () => {
+    requestAnimationFrame(() => scrollTo('projects'));
+  };
+
+  const closeProjects = () => {
+    requestAnimationFrame(() => scrollTo('services'));
   };
 
   const handleGalleryDownload = async (mediaUrl, title) => {
@@ -761,6 +807,21 @@ function App() {
                 </div>
               ))}
             </div>
+
+            <div className="projectsCta reveal">
+              <div>
+                <span className="eyebrow">Completed Projects</span>
+                <h3>See how our panel solutions are used in real projects.</h3>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={openProjects}
+              >
+                View Our Projects <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </section>
 
@@ -966,7 +1027,7 @@ function App() {
           </div>
         </section>
 
-<section id="reviews" className="section darkSection">
+  <section id="reviews" className="section darkSection reviewsSection">
           <div className="container reviewContainer">
             <div className="reveal">
               <span className="eyebrow">Reviews</span>
@@ -1024,50 +1085,98 @@ function App() {
           </div>
         </section>
 
-        <section className="section darkSection">
+        <section id="projects" className="section darkSection projectsSection">
           <div className="container">
-            <div className="areaBox reveal">
-              <span className="eyebrow">
-                Local Service
+            <div className="sectionHead">
+              <div>
+                <span className="eyebrow">Our Projects</span>
+                <h2 className="title">Completed Projects</h2>
+                <p className="lead">
+                  A selection of residential, commercial and prefab projects completed with Aerocon panel solutions.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeProjects}
+              >
+                <ArrowRight size={16} style={{ transform: 'rotate(180deg)' }} />
+                Back to Services
+              </button>
+            </div>
+
+            <div className="projectsTable" role="table" aria-label="Completed projects">
+              <div className="projectsHeader" role="row">
+                <span>S.No</span>
+                <span>Project</span>
+                <span>Location</span>
+                <span>Category</span>
+                <span>Scope of Work</span>
+              </div>
+
+              {visibleProjects.map(([project, location, category, scope], index) => {
+                const projectIndex = projectStartIndex + index;
+
+                return (
+                <div className="projectRow" role="row" key={`${project}-${location}-${projectIndex}`}>
+                  <span className="projectNumber" data-label="S.No">{projectIndex + 1}</span>
+                  <span data-label="Project">{project}</span>
+                  <span data-label="Location">{location}</span>
+                  <span data-label="Category">{category}</span>
+                  <span data-label="Scope of Work">{scope}</span>
+                </div>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                marginTop: '24px'
+              }}
+            >
+              <span>
+                Showing {projectStartIndex + 1}–
+                {Math.min(projectStartIndex + projectsPerPage, projects.length)} of {projects.length}
               </span>
 
-              <h2
-                className="title"
+              <div
                 style={{
-                  fontSize: 'clamp(2rem,4vw,3.4rem)'
+                  display: 'flex',
+                  gap: '10px',
+                  flexWrap: 'wrap'
                 }}
               >
-               Located in Hyderabad and serving across Telangana and Andhra Pradesh.
-              </h2>
-
-              <p className="lead">
-                Aerocon Panels provides residential, commercial and interior
-                panel solutions across Hyderabad and throughout Telangana and
-                Andhra Pradesh.
-              </p>
-
-              <div className="areaTags">
-                {[
-                  'Hyderabad',
-                  'Gachibowli',
-                  'Madhapur',
-                  'Kondapur',
-                  'Hitech City',
-                  'Miyapur'
-                ].map((x) => (
-                  <span
-                    className="areaTag"
-                    key={x}
+                {projectPage > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setProjectPage((page) => page - 1)}
                   >
-                    {x}
-                  </span>
-                ))}
+                    Previous
+                  </button>
+                )}
+
+                {projectPage < projectPageCount && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setProjectPage((page) => page + 1)}
+                  >
+                    Next
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </section>
 
-        <section id="contact" className="section darkSection">
+        <section id="contact" className="section darkSection contactSection">
           <div className="container">
             <div className="reveal">
               <span className="eyebrow">Contact</span>
