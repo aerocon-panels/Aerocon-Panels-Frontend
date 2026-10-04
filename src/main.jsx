@@ -20,7 +20,8 @@ import {
   HardHat,
   Home,
   BriefcaseBusiness,
-  Send
+  Send,
+  Download
 } from 'lucide-react';
 
 import './styles.css';
@@ -141,6 +142,14 @@ const products = [
   }
 ];
 
+const fallbackGalleryItems = products.map((product, index) => ({
+  id: `product-gallery-${index + 1}`,
+  title: product.title,
+  type: 'image',
+  media_url: product.img,
+  thumbnail_url: product.img
+}));
+
 const reviews = [
   {
     name: 'Susagar Divi',
@@ -223,6 +232,7 @@ function App() {
   const [galleryItems, setGalleryItems] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [galleryError, setGalleryError] = useState('');
+  const [selectedGalleryImage, setSelectedGalleryImage] = useState(null);
 
   const selectedProduct =
     products.find((p) => p.title === selectedProductTitle) || null;
@@ -262,13 +272,13 @@ function App() {
 
       if (error) {
         console.error('Gallery loading error:', error);
-        setGalleryItems([]);
-        setGalleryError('Unable to load the gallery right now.');
+        setGalleryItems(fallbackGalleryItems);
       } else {
+        const remoteItems = (data || []).filter(
+          (item) => item.media_url || item.thumbnail_url
+        );
         setGalleryItems(
-          (data || []).filter(
-            (item) => item.media_url || item.thumbnail_url
-          )
+          remoteItems.length > 0 ? remoteItems : fallbackGalleryItems
         );
       }
 
@@ -278,11 +288,59 @@ function App() {
     loadGallery();
   }, []);
 
+  useEffect(() => {
+    if (!selectedGalleryImage) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSelectedGalleryImage(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [selectedGalleryImage]);
+
   const scrollTo = (id) => {
     setMenu(false);
     document
       .getElementById(id)
       ?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleGalleryDownload = async (mediaUrl, title) => {
+    const fallbackDownload = () => {
+      const link = document.createElement('a');
+      link.href = mediaUrl;
+      link.download = title || 'gallery-photo';
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    };
+
+    try {
+      const response = await fetch(mediaUrl);
+      if (!response.ok) throw new Error('Unable to download gallery photo');
+
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = title || 'gallery-photo';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Gallery download error:', error);
+      fallbackDownload();
+    }
   };
 
   // Supabase-connected enquiry submission
@@ -849,14 +907,60 @@ function App() {
                           }}
                         />
                       ) : (
-                        <img
-                          src={mediaUrl}
-                          alt={g.title}
-                        />
+                        <>
+                          <img
+                            src={mediaUrl}
+                            alt={g.title}
+                            onClick={() =>
+                              setSelectedGalleryImage({
+                                src: mediaUrl,
+                                alt: g.title
+                              })
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="galleryDownload"
+                            aria-label="Download photo"
+                            title="Download photo"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleGalleryDownload(mediaUrl, g.title);
+                            }}
+                          >
+                            <Download size={18} />
+                          </button>
+                        </>
                       )}
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {selectedGalleryImage && (
+              <div
+                className="galleryLightbox"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Gallery image preview"
+                onClick={() => setSelectedGalleryImage(null)}
+              >
+                <button
+                  type="button"
+                  className="galleryLightboxClose"
+                  aria-label="Close image preview"
+                  onClick={() => setSelectedGalleryImage(null)}
+                >
+                  <X size={28} />
+                </button>
+
+                <img
+                  className="galleryLightboxImage"
+                  src={selectedGalleryImage.src}
+                  alt={selectedGalleryImage.alt}
+                  onClick={(event) => event.stopPropagation()}
+                />
               </div>
             )}
           </div>
