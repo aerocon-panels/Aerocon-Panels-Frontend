@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowRight,
@@ -26,6 +26,7 @@ import {
 
 import './styles.css';
 import { supabase } from './lib/supabaseClient';
+import SuperUserPortal from './SuperUserPortal';
 
 // Gallery data is loaded from Supabase.
 // Category is inferred from the title or Storage filename because the current
@@ -142,14 +143,6 @@ const products = [
   }
 ];
 
-const fallbackGalleryItems = products.map((product, index) => ({
-  id: `product-gallery-${index + 1}`,
-  title: product.title,
-  type: 'image',
-  media_url: product.img,
-  thumbnail_url: product.img
-}));
-
 const projects = [
   ['Restaurant', 'Tellapur', 'Commercial partions', '1000 sft wall area with 75mm aerocon panels'],
   ['Hydropharm', 'Vattinagulapally', 'Prefab structure', '1800 sft wall area with 75mm Aerocon panels'],
@@ -179,7 +172,7 @@ const projects = [
   ['Industrial office', 'Chandanvalle,Shabad', 'Industrial shed', '4000 sft area of partions with 12mm cement fibre board']
 ];
 
-const reviews = [
+const existingReviews = [
   {
     name: 'Susagar Divi',
     meta: 'Local Guide • 21 reviews • 12 photos',
@@ -227,6 +220,45 @@ const reviews = [
   }
 ];
 
+const fetchApprovedReviews = async () => {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('id, name, rating, review_text, created_at')
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false })
+    .abortSignal(AbortSignal.timeout(15000));
+
+  if (error) throw error;
+  return data ?? [];
+};
+
+const getReviewErrorMessage = (error) => {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  const message =
+    typeof error?.message === 'string'
+      ? error.message
+      : 'Unknown Supabase error';
+
+  if (code === 'PGRST205' || code === 'PGRST204') {
+    return `${code}: ${message} Run supabase/customer-reviews.sql in the Supabase SQL Editor, then refresh the API schema cache if needed.`;
+  }
+  if (code === '42501') {
+    return `${code}: ${message} Check the reviews table grants and Row Level Security policies in supabase/customer-reviews.sql.`;
+  }
+
+  return code ? `${code}: ${message}` : message;
+};
+
+const logReviewError = (context, error) => {
+  console.error(context, {
+    code: typeof error?.code === 'string' ? error.code : undefined,
+    message:
+      typeof error?.message === 'string'
+        ? error.message
+        : 'Unknown Supabase error'
+  });
+};
+
 function WhatsAppIcon({ size = 27 }) {
   return (
     <svg
@@ -247,22 +279,82 @@ function WhatsAppIcon({ size = 27 }) {
 function App() {
   const [menu, setMenu] = useState(false);
   const [filter, setFilter] = useState('All');
+  const [reviewPage, setReviewPage] = useState(1);
+  const [isSuperUserPage, setIsSuperUserPage] = useState(
+    window.location.hash === '#super-user'
+  );
 
   const [form, setForm] = useState({
     name: '',
     phone: '',
     email: '',
-    message: ''
+    message: '',
+    reviewText: '',
+    reviewRating: 0
   });
 
   const [sent, setSent] = useState(false);
+  const [reviewSubmissionId, setReviewSubmissionId] = useState(null);
+  const [pendingReview, setPendingReview] = useState(null);
+  const [enquirySubmittedForReview, setEnquirySubmittedForReview] = useState(false);
+  const [enquiryLoading, setEnquiryLoading] = useState(false);
+  const isSubmittingEnquiry = useRef(false);
   const [selectedProductTitle, setSelectedProductTitle] = useState(null);
   const [projectPage, setProjectPage] = useState(1);
 
   const [galleryItems, setGalleryItems] = useState([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [galleryError, setGalleryError] = useState('');
+  const [galleryRetryCount, setGalleryRetryCount] = useState(0);
   const [selectedGalleryImage, setSelectedGalleryImage] = useState(null);
+  const [submittedReviews, setSubmittedReviews] = useState([]);
+  const [reviewsError, setReviewsError] = useState('');
+
+  const reviewsPerPage = 5;
+  const reviews = useMemo(() => {
+    const existingReviewKeys = new Set(
+      existingReviews.map((review) =>
+        `${review.name.trim().toLowerCase()}|${review.rating}|${review.text.trim().toLowerCase()}`
+      )
+    );
+    const uniqueSubmittedReviews = submittedReviews.filter((review) => {
+      const key =
+        `${review.name.trim().toLowerCase()}|${review.rating}|${review.review_text.trim().toLowerCase()}`;
+      if (existingReviewKeys.has(key)) return false;
+      existingReviewKeys.add(key);
+      return true;
+    });
+
+    return [
+      ...uniqueSubmittedReviews.map((review) => ({
+        id: review.id,
+        name: review.name,
+        rating: review.rating,
+        text: review.review_text,
+        time: new Date(review.created_at).toLocaleDateString(),
+        avatar: review.name.trim().charAt(0).toUpperCase() || '?',
+        avatarClass: 'avatar-submitted'
+      })),
+      ...existingReviews
+    ];
+  }, [submittedReviews]);
+  const reviewPageCount = Math.ceil(reviews.length / reviewsPerPage);
+  const visibleReviews = reviews.slice(
+    (reviewPage - 1) * reviewsPerPage,
+    reviewPage * reviewsPerPage
+  );
+
+  useEffect(() => {
+    setReviewPage((page) => Math.min(page, Math.max(reviewPageCount, 1)));
+  }, [reviewPageCount]);
+
+  useEffect(() => {
+    const syncRoute = () => {
+      setIsSuperUserPage(window.location.hash === '#super-user');
+    };
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
 
   const selectedProduct =
     products.find((p) => p.title === selectedProductTitle) || null;
@@ -298,33 +390,77 @@ function App() {
   }, [galleryItems, filter]);
 
   useEffect(() => {
+    if (isSuperUserPage) return undefined;
+
+    let isCurrentRequest = true;
+
     const loadGallery = async () => {
       setGalleryLoading(true);
       setGalleryError('');
 
-      const { data, error } = await supabase
-        .from('gallery_items')
-        .select('id, title, type, media_url, thumbnail_url, is_published')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('gallery_items')
+          .select('id, title, type, media_url, thumbnail_url, is_published')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+          .abortSignal(AbortSignal.timeout(15000));
 
-      if (error) {
-        console.error('Gallery loading error:', error);
-        setGalleryItems(fallbackGalleryItems);
-      } else {
+        if (error) throw error;
+
         const remoteItems = (data || []).filter(
           (item) => item.media_url || item.thumbnail_url
         );
-        setGalleryItems(
-          remoteItems.length > 0 ? remoteItems : fallbackGalleryItems
-        );
+        if (isCurrentRequest) setGalleryItems(remoteItems);
+      } catch (error) {
+        console.error('Gallery loading error:', error);
+        if (isCurrentRequest) {
+          setGalleryItems([]);
+          const errorMessage =
+            typeof error?.message === 'string'
+              ? error.message
+              : 'Unexpected request error';
+          setGalleryError(
+            `We couldn't load the gallery: ${errorMessage}. Check your connection and Supabase settings, then try again.`
+          );
+        }
+      } finally {
+        if (isCurrentRequest) setGalleryLoading(false);
       }
-
-      setGalleryLoading(false);
     };
 
-    loadGallery();
-  }, []);
+    void loadGallery();
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [galleryRetryCount, isSuperUserPage]);
+
+  useEffect(() => {
+    if (isSuperUserPage) return undefined;
+
+    let isCurrentRequest = true;
+    const loadReviews = async () => {
+      try {
+        const data = await fetchApprovedReviews();
+        if (isCurrentRequest) {
+          setSubmittedReviews(data);
+          setReviewsError('');
+        }
+      } catch (error) {
+        logReviewError('Customer reviews loading error:', error);
+        if (isCurrentRequest) {
+          setReviewsError(`Submitted reviews couldn't be loaded: ${getReviewErrorMessage(error)}`);
+        }
+      }
+    };
+
+    void loadReviews();
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [isSuperUserPage]);
 
   useEffect(() => {
     if (!selectedGalleryImage) return undefined;
@@ -357,6 +493,17 @@ function App() {
 
   const closeProjects = () => {
     requestAnimationFrame(() => scrollTo('services'));
+  };
+
+  const refreshSubmittedReviews = async () => {
+    try {
+      const data = await fetchApprovedReviews();
+      setSubmittedReviews(data);
+      setReviewsError('');
+    } catch (error) {
+      logReviewError('Customer reviews refresh error:', error);
+      setReviewsError(`Submitted reviews couldn't be refreshed: ${getReviewErrorMessage(error)}`);
+    }
   };
 
   const handleGalleryDownload = async (mediaUrl, title) => {
@@ -392,7 +539,14 @@ function App() {
   // Supabase-connected enquiry submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingEnquiry.current) return;
     setSent(false);
+
+    const reviewText = pendingReview?.reviewText ?? form.reviewText.trim();
+    const reviewRating = pendingReview?.rating ?? form.reviewRating;
+    const reviewName = pendingReview?.name ?? form.name.trim();
+    const hasReviewText = Boolean(reviewText);
+    const hasReviewRating = reviewRating > 0;
 
     if (
       !form.name.trim() ||
@@ -403,36 +557,117 @@ function App() {
       return;
     }
 
-    const { error } = await supabase
-      .from('customer_enquiries')
-      .insert([
-        {
-          name: form.name.trim(),
-          phone: form.phone.trim(),
-          email: form.email.trim() || null,
-          message: form.message.trim()
-        }
-      ]);
-
-    if (error) {
-      console.error('Supabase enquiry error:', error);
-      setSent('Unable to submit your enquiry. Please try again.');
+    if (!pendingReview && hasReviewText !== hasReviewRating) {
+      setSent('Please enter your review and select a star rating, or leave both blank.');
       return;
     }
 
-    setForm({
-      name: '',
-      phone: '',
-      email: '',
-      message: ''
-    });
+    if (!pendingReview && reviewText.length > 1000) {
+      setSent('Your review must be 1000 characters or fewer.');
+      return;
+    }
 
-    setSent(
-      'Thank you! Your enquiry has been submitted successfully.'
-    );
+    isSubmittingEnquiry.current = true;
+    setEnquiryLoading(true);
+    let enquiryWasSubmitted = enquirySubmittedForReview;
+    let reviewToSave = pendingReview;
+    try {
+      if (!enquiryWasSubmitted) {
+        const { error } = await supabase
+          .from('customer_enquiries')
+          .insert([
+            {
+              name: form.name.trim(),
+              phone: form.phone.trim(),
+              email: form.email.trim() || null,
+              message: form.message.trim()
+            }
+          ]);
 
-    setTimeout(() => setSent(''), 5000);
+        if (error) {
+          console.error('Supabase enquiry error:', error);
+          setSent('Unable to submit your enquiry. Please try again.');
+          return;
+        }
+        enquiryWasSubmitted = true;
+        if (hasReviewText && hasReviewRating) {
+          setEnquirySubmittedForReview(true);
+        }
+      }
+
+      if (hasReviewText && hasReviewRating) {
+        if (!reviewToSave) {
+          reviewToSave = {
+            submissionId: reviewSubmissionId || crypto.randomUUID(),
+            name: reviewName,
+            rating: reviewRating,
+            reviewText
+          };
+          setReviewSubmissionId(reviewToSave.submissionId);
+          setPendingReview(reviewToSave);
+        }
+
+        const { error: reviewError } = await supabase
+          .from('reviews')
+          .insert({
+            submission_id: reviewToSave.submissionId,
+            name: reviewToSave.name,
+            rating: reviewToSave.rating,
+            review_text: reviewToSave.reviewText
+          });
+
+        if (reviewError && reviewError.code !== '23505') {
+          logReviewError('Supabase review submission error:', reviewError);
+          setEnquirySubmittedForReview(true);
+          setSent(
+            `Your enquiry was sent, but your review could not be saved: ${getReviewErrorMessage(reviewError)} Your information is preserved; retrying will not submit the enquiry again.`
+          );
+          return;
+        }
+
+        setReviewSubmissionId(null);
+        setPendingReview(null);
+        setEnquirySubmittedForReview(false);
+        await refreshSubmittedReviews();
+        setSent('Thank you! Your enquiry was submitted and your review is awaiting approval.');
+      } else {
+        setReviewSubmissionId(null);
+        setPendingReview(null);
+        setEnquirySubmittedForReview(false);
+        setSent('Thank you! Your enquiry has been submitted successfully.');
+      }
+
+      setForm({
+        name: '',
+        phone: '',
+        email: '',
+        message: '',
+        reviewText: '',
+        reviewRating: 0
+      });
+
+      setTimeout(() => setSent(''), 5000);
+    } catch (error) {
+      console.error('Enquiry submission error:', error);
+      if (enquiryWasSubmitted && hasReviewText && hasReviewRating) {
+        if (reviewToSave) {
+          setReviewSubmissionId(reviewToSave.submissionId);
+          setPendingReview(reviewToSave);
+        }
+        setEnquirySubmittedForReview(true);
+        setSent(
+          `Your enquiry was sent, but your review could not be saved: ${getReviewErrorMessage(error)} Your information is preserved; retrying will not submit the enquiry again.`
+        );
+      } else {
+        setSent('Unable to submit your enquiry. Please try again.');
+      }
+    } finally {
+      isSubmittingEnquiry.current = false;
+      setEnquiryLoading(false);
+    }
   };
+
+  if (isSuperUserPage) return <SuperUserPortal />;
 
   return (
     <div>
@@ -466,6 +701,17 @@ function App() {
           </nav>
 
           <div className="navactions">
+            <button
+              type="button"
+              className="superUserButton"
+              onClick={() => {
+                setMenu(false);
+                window.location.hash = 'super-user';
+              }}
+            >
+              Super User
+            </button>
+
             <a className="btn btn-primary" href="#contact">
               Get a Quote <ArrowUpRight size={16} />
             </a>
@@ -505,6 +751,16 @@ function App() {
           >
             Get a Quote
           </a>
+          <button
+            type="button"
+            className="superUserButton mobileSuperUserButton"
+            onClick={() => {
+              setMenu(false);
+              window.location.hash = 'super-user';
+            }}
+          >
+            Super User
+          </button>
         </div>
       </header>
 
@@ -808,6 +1064,10 @@ function App() {
               ))}
             </div>
 
+            {reviewsError && (
+              <p className="reviewLoadError" role="status">{reviewsError}</p>
+            )}
+
             <div className="projectsCta reveal">
               <div>
                 <span className="eyebrow">Completed Projects</span>
@@ -933,7 +1193,16 @@ function App() {
             )}
 
             {!galleryLoading && galleryError && (
-              <p className="lead">{galleryError}</p>
+              <div role="alert">
+                <p className="lead">{galleryError}</p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setGalleryRetryCount((count) => count + 1)}
+                >
+                  Retry
+                </button>
+              </div>
             )}
 
             {!galleryLoading && !galleryError && visible.length === 0 && (
@@ -1038,10 +1307,10 @@ function App() {
             </div>
 
             <div className="reviewFeed">
-              {reviews.map((review) => (
+              {visibleReviews.map((review) => (
                 <article
                   className="googleReview reveal"
-                  key={review.name}
+                  key={review.id ?? review.name}
                 >
                   <div className="reviewHeader">
                     <div
@@ -1056,7 +1325,7 @@ function App() {
                       <h3>{review.name}</h3>
 
                       <div className="reviewMeta">
-                        {review.meta}
+                        {review.meta || 'Customer review'}
                       </div>
                     </div>
 
@@ -1082,6 +1351,51 @@ function App() {
                 </article>
               ))}
             </div>
+
+            {reviewPageCount > 0 && (
+              <nav className="reviewPagination" aria-label="Customer reviews pages">
+                <button
+                  type="button"
+                  className="reviewPageButton"
+                  onClick={() => setReviewPage((page) => Math.max(page - 1, 1))}
+                  disabled={reviewPage === 1}
+                >
+                  Previous
+                </button>
+
+                <div className="reviewPageNumbers">
+                  {Array.from({ length: reviewPageCount }, (_, index) => {
+                    const page = index + 1;
+                    return (
+                      <button
+                        type="button"
+                        className={
+                          'reviewPageButton' +
+                          (reviewPage === page ? ' active' : '')
+                        }
+                        key={page}
+                        aria-label={`Page ${page}`}
+                        aria-current={reviewPage === page ? 'page' : undefined}
+                        onClick={() => setReviewPage(page)}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  className="reviewPageButton"
+                  onClick={() =>
+                    setReviewPage((page) => Math.min(page + 1, reviewPageCount))
+                  }
+                  disabled={reviewPage === reviewPageCount}
+                >
+                  Next
+                </button>
+              </nav>
+            )}
           </div>
         </section>
 
@@ -1346,14 +1660,49 @@ function App() {
                         placeholder="Tell us about your project..."
                       />
                     </div>
+
+                    <fieldset className="field full customerReviewField">
+                      <legend>Your Review (Optional)</legend>
+                      <div className="reviewRatingSelector" role="radiogroup" aria-label="Review rating">
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <button
+                            key={rating}
+                            type="button"
+                            className={
+                              'reviewRatingStar' +
+                              (form.reviewRating >= rating ? ' selected' : '')
+                            }
+                            role="radio"
+                            aria-checked={form.reviewRating === rating}
+                            aria-label={`${rating} star${rating === 1 ? '' : 's'}`}
+                            onClick={() =>
+                              setForm({ ...form, reviewRating: rating })
+                            }
+                          >
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        id="reviewText"
+                        className="customerReviewText"
+                        maxLength={1000}
+                        value={form.reviewText}
+                        onChange={(e) =>
+                          setForm({ ...form, reviewText: e.target.value })
+                        }
+                        placeholder="Share your experience with us..."
+                      />
+                    </fieldset>
                   </div>
 
                   <button
                     className="btn btn-primary"
                     type="submit"
                     style={{ marginTop: 16 }}
+                    disabled={enquiryLoading}
                   >
-                    <Send size={16} /> Send Enquiry
+                    <Send size={16} /> {enquiryLoading ? 'Submitting...' : 'Send Enquiry'}
                   </button>
 
                   <div className="formMsg">
