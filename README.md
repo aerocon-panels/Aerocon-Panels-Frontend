@@ -36,23 +36,27 @@ the dashboard can access customer records.
 1. In Supabase Authentication, confirm the `saas.agency2021@gmail.com` user
    exists and its email is verified. Public sign-up is not required for this
    feature; this website has no public Super User registration flow.
-2. Run [`supabase/super-user-dashboard.sql`](./supabase/super-user-dashboard.sql)
-   in the SQL Editor for the same project as the frontend. The migration stops
-   if that exact confirmed account is missing, then replaces
-   `customer_enquiries` policies with Super User-only management plus the
-   existing public enquiry insert behavior.
+2. For a new setup, run
+   [`supabase/super-user-dashboard.sql`](./supabase/super-user-dashboard.sql)
+   in the SQL Editor for the same project as the frontend. If the deployed
+   table already has its public enquiry INSERT policy but lacks Super User
+   read access, run the additive
+   [`supabase/super-user-read-policy.sql`](./supabase/super-user-read-policy.sql)
+   migration instead; it preserves the existing INSERT policy.
 3. Sign in at `/#super-user` using that confirmed account.
 
-The database RLS policy checks the exact email in Supabase's signed JWT. Only
-that account can select, insert, update, or delete customer enquiry records.
+The database RLS policy binds access to the Auth user ID for the confirmed
+`saas.agency2021@gmail.com` account. The additive read-policy migration grants
+SELECT only to that Auth identity through RLS and leaves the existing public
+INSERT policy unchanged; it does not add update/delete policies.
 Anonymous and regular authenticated visitors retain insert-only access needed
 by the public enquiry form; they cannot read, update, or delete customer
 records. The frontend email check is only a UI gate; RLS is the security
 boundary. No service-role key is used in the frontend.
 
-The dashboard selects the existing `name`, `email`, and `phone` enquiry columns.
-It omits optional email display when all email values are blank and does not
-assume an address column exists. No service-role key is used in the frontend.
+The dashboard selects the existing `name` and `phone` enquiry columns and does
+not assume email or address columns exist. No service-role key is used in the
+frontend.
 To import the supplied party list, run
 [`supabase/import-customer-parties.sql`](./supabase/import-customer-parties.sql)
 in the same project's SQL Editor. It validates that the name and phone columns
